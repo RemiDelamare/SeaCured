@@ -1,0 +1,34 @@
+NMEA-0183 uses 12V signals. We can't plug it directly to the Arduino. 
+
+We must choose between RS-232, RS-422 or RS-485. I (Ulysse) suggest RS-422, it seems easier to code.  
+
+We will use a converter. There are a lot of converters, we can use the SparkFun MAX3232 for exeample. 
+
+NMEA-0183 library.  
+1/ open nmea.h and change  #include "WConstants.h"  to  #include "arduino.h"  
+2/ Open nmal.cpp and change  #include "WProgram.h"  to  #include "arduino.h"  
+ 
+Most basic application : receive the data and send it to the arduino.
+
+#include <nmea.h>   
+     
+  NMEA nmeaDecoder(ALL);   
+     
+  void setup() {   
+  Serial.begin(4800);   
+  Serial2.begin(4800);   
+  }   
+     
+  void loop() {   
+  if (Serial2.available()) {                 // if something is incoming through the Serial Port
+   if (nmeaDecoder.decode(Serial2.read())) { // if it's a valid NMEA sentence   
+    Serial.println(nmeaDecoder.sentence());  // print it   
+    }   
+   }   
+  }  
+  
+  In this code the results are quite unreadalble. But the terms of the sentence can be easily extracted. 
+Example: if you want to print the first term. 
+
+char* t0 = nmeaDecoder.term(0);
+Serial.println(t0); 
