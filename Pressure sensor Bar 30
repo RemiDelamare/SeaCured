@@ -1,0 +1,97 @@
+300m depths (30 Bar), depth resolution of 2mm. 
+It includes a temperature  sensor.
+Schematic : https://github.com/bluerobotics/Bar30-Pressure-Sensor/blob/master/BAR30-SENSOR-Schematic.pdf
+
+To make to work with the arduino we need to dowload the BlueRobotics MS5837 Library:
+
+MS5837();
+
+/** Must be called before attempting to operate the sensor.
+ * Returns true if the sensor was initialized successfully.
+ */
+bool init();
+
+/** Set model of MS5837 sensor. Valid options are MS5837::MS5837_30BA (default)
+ * and MS5837::MS5837_02BA.
+ */
+void setModel(uint8_t model);
+
+/** Provide the density of the working fluid in kg/m^3. Default is for 
+ * seawater. Should be 997 for freshwater.
+ */
+void setFluidDensity(float density);
+
+/** The read from I2C takes up for 40 ms, so use sparingly is possible.
+ */
+void read();
+
+/** Pressure returned in mbar or mbar*conversion rate.
+ */
+float pressure(float conversion = 1.0f);
+
+/** Temperature returned in deg C.
+ */
+float temperature();
+
+/** Depth returned in meters (valid for operation in incompressible
+ *  liquids only. Uses density that is set for fresh or seawater.
+ */
+float depth();
+
+/** Altitude returned in meters (valid for operation in air only).
+ */
+float altitude();
+
+
+////////////////////////// AND finally an example ///////////////////////////////
+
+#include <Wire.h>
+#include "MS5837.h"
+
+MS5837 sensor;
+
+void setup() {
+  
+  Serial.begin(9600);
+  
+  Serial.println("Starting");
+  
+  Wire.begin();
+
+  // Initialize pressure sensor
+  // Returns true if initialization was successful
+  // We can't continue with the rest of the program unless we can initialize the sensor
+  while (!sensor.init()) {
+    Serial.println("Init failed!");
+    Serial.println("Are SDA/SCL connected correctly?");
+    Serial.println("Blue Robotics Bar30: White=SDA, Green=SCL");
+    Serial.println("\n\n\n");
+    delay(5000);
+  }
+  
+  sensor.setModel(MS5837::MS5837_30BA);
+  sensor.setFluidDensity(997); // kg/m^3 (freshwater, 1029 for seawater)
+}
+
+void loop() {
+  // Update pressure and temperature readings
+  sensor.read();
+
+  Serial.print("Pressure: "); 
+  Serial.print(sensor.pressure()); 
+  Serial.println(" mbar");
+  
+  Serial.print("Temperature: "); 
+  Serial.print(sensor.temperature()); 
+  Serial.println(" deg C");
+  
+  Serial.print("Depth: "); 
+  Serial.print(sensor.depth()); 
+  Serial.println(" m");
+  
+  Serial.print("Altitude: "); 
+  Serial.print(sensor.altitude()); 
+  Serial.println(" m above mean sea level");
+
+  delay(1000);
+}
