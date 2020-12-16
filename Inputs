@@ -1,7 +1,7 @@
-Acceleration X
-Acceleration Y
-Profondeur (Sonar)
-Profondeur (Profondimetre, pression)
-Bouton Telecommande - Montee
-Bouton Telecommande - Stabilisation
-Bouton Telecommande - Descente
+Acceleration X (PWM Pin)
+Acceleration Y (PWM Pin)
+Profondeur (Sonar) (Serial Pin , RX?)
+Profondeur (Profondimetre, pression) (Pins A4 & A5)
+Bouton Telecommande - Montee (Digital Pin)
+Bouton Telecommande - Stabilisation (Digital Pin)
+Bouton Telecommande - Descente (Digital Pin)
