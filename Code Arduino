@@ -1,1 +1,72 @@
+//NMEA-0183 library.  
+//1/ open nmea.h and change  #include "WConstants.h"  to  #include "arduino.h"  
+//2/ Open nmal.cpp and change  #include "WProgram.h"  to  #include "arduino.h"  
 
+
+#include <SoftwareSerial.h>                   //this is for debugging purposes, once the product is tested succesfully, it will be removed
+#include <nmea.h>                             //library to decode the sonar's messages
+#include "MS5837.h"                           //library to operate the pressure sensor
+#include <Wire.h>                             //library to connect to the pressure sensor
+
+SoftwareSerial tempSerial(2, 3);              //assign new RX, TX pins for debugging
+NMEA nmeaDecoder(ALL);
+MS5837 presSensor;                            //create the pressure sensor data structure
+const int xPin = 2;                           //x output of the accelerometer
+const int yPin = 3;                           //y output of the accelerometer
+
+int n = 3;                                    //rank of the depth information in the NMEA sentence
+float fSonarDepth = 0;                        //init sonar depth to 0
+float fPresDepth = 0;                         //init pressure sensor depth to 0
+int pulseX, pulseY;                           //init the output of the accelerometer (PMW pulses)
+int accelX, acceleY;                          //init acceleration of the system (in milli-g's)
+
+void setup() {
+  // initialize digital pin LED_BUILTIN as an output.
+  pinMode(LED_BUILTIN, OUTPUT);
+  
+  tempSerial.begin(4800);                     //initialize the serial port (REPLACE tempSerial by Serial AFTER debugging)
+  Wire.begin();                               //initialize the I2C communication
+  
+  while (!sensor.init()) {                    //blink the onboard LED while initialising the sensor
+    digitalWrite(LED_BUILTIN, HIGH);
+    delay(250);
+    digitalWrite(LED_BUILTIN, LOW);
+    delay(250);
+  }
+  digitalWrite(LED_BUILTIN, LOW);             //reset the LED to off
+  
+  sensor.setModel(MS5837::MS5837_30BA);       //set the pressure sensor type
+  sensor.setFluidDensity(1029);               //water density in kg/m^3 (997 for freshwater, 1029 for seawater)
+  
+  sonar();                                    //initialize the recorded values
+  pressure();
+  acceleration();
+}   
+
+void loop() {
+  
+}
+
+void sonar() {
+  //SONAR READ
+  if (tempSerial.available()) {               // if something is incoming through the Serial Port
+    if (nmeaDecoder.decode(Serial2.read())) { // if it's a valid NMEA sentence
+      char* cDepth = nmeaDecoder.term(n);     //extract the nth term (depth)
+      fDepth = atof(cDepth);                  //convert it to float
+    }
+  }
+}
+
+void pressure() {
+  //PRESSURE SENSOR READ
+  sensor.read();                              //update the sensor state
+  fPresDepth = sensor.depth();                //update the recorded depth
+}
+
+void acceleration() {
+  //ACCELEROMETER READ
+  pulseX = pulseIn(xPin, HIGH);               //read the pulse length for the x and y axes
+  pulseY = pulseIn(yPin, HIGH);
+  accelX = ((pulseX / 10) - 500) * 8;         //compute the acceleration value in milli-g's
+  accelY = ((pulseY / 10) - 500) * 8;
+}
