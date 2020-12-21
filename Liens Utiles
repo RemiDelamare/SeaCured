@@ -1,6 +1,9 @@
 -Decodage + Interface NMEA 183 pour sonar (contient liens matos):
 https://kingtidesailing.blogspot.com/2015/09/how-to-connect-any-nmea-0183-device-to.html
 
+-Module RS485 pour le sonar:
+https://www.amazon.com/SMAKN%C2%AE-MAX485-Module-RS-485-Development/dp/B014QNI0BC/ref=as_li_ss_tl?ie=UTF8&qid=1443373321&sr=8-1&keywords=rs-485+to+ttl&linkCode=sl1&tag=kintidsai-20&linkId=b773a41a531b7930e037013c1d3fc0b1
+
 -Profondimetre (pression):
 https://bluerobotics.com/store/sensors-sonars-cameras/sensors/bar30-sensor-r1/?fbclid=IwAR3nUWNkh9Tx9mbH4dSqeHtjhEWk5wtxETh5kg2lhroQ6Z4fhyKgC6dbDyo
 
