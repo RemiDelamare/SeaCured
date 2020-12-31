@@ -8,11 +8,22 @@
 #include "MS5837.h"                           //library to operate the pressure sensor
 #include <Wire.h>                             //library to connect to the pressure sensor
 
-SoftwareSerial tempSerial(2, 3);              //assign new RX, TX pins for debugging
+SoftwareSerial tempSerial(10, 11);            //assign new RX, TX pins for debugging
 NMEA nmeaDecoder(ALL);
 MS5837 presSensor;                            //create the pressure sensor data structure
-const int xPin = 2;                           //x output of the accelerometer
-const int yPin = 3;                           //y output of the accelerometer
+const int xPin = 5;                           //x output of the accelerometer
+const int yPin = 6;                           //y output of the accelerometer
+
+const int updatePin = 2;                      //set the mode interrupt pin
+const int manualPin = 3;                      //set the manual mode interrupt pin
+const int modePin1 = 7;                       //set the mode pins
+const int modePin2 = 8;
+const int modePin3 = 9;
+volatile int buoyMode = -1;                   //set the mode to default
+volatile bool manualMode = false;             //set manual mode off
+
+const int valveEntrance = 12;                 //set the pins for valve control
+const int valveExit = 13;
 
 int n = 3;                                    //rank of the depth information in the NMEA sentence
 float fSonarDepth = 0;                        //init sonar depth to 0
@@ -38,13 +49,64 @@ void setup() {
   sensor.setModel(MS5837::MS5837_30BA);       //set the pressure sensor type
   sensor.setFluidDensity(1029);               //water density in kg/m^3 (997 for freshwater, 1029 for seawater)
   
+  //initialise the mode pins
+  pinMode(modePin1, INPUT_PULLUP);
+  pinMode(modePin2, INPUT_PULLUP);
+  pinMode(modePin3, INPUT_PULLUP);
+  
+  //initialise the interrupt pin to change buoyancy modes
+  pinMode(updatePin, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(updatePin), updateMode, RISING);
+  
+  //initialise the interrupt pin to switch to manual mode
+  pinMode(manualPin, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(manualPin), manualStart, RISING);
+  
+  //initialise the valve control pins
+  pinMode(valveEntrance, OUTPUT);
+  pinMode(valveExit, OUTPUT);
+  
   sonar();                                    //initialize the recorded values
   pressure();
   acceleration();
 }   
 
 void loop() {
+  //update the sensor data
+  sonar();
+  pressure();
+  acceleration();
   
+  //check for manual override
+  if (!manualMode){
+    //perform buoyancy adjustments according to mode
+    switch (buoyMode){
+      //negative buoyancy (lowering)
+      case 0:
+
+        break;
+
+      //neutral buoyancy (level)
+      case 1:
+
+        break;
+
+      //positive buoyancy (rising)
+      case 2:
+
+        break;
+
+      //initial (do nothing)
+      case -1:
+        break;
+    }
+  }
+  else{
+    //read the manual pin, if it is low, disable manual mode
+    if (digitalRead(manualPin) == LOW) {
+      manualMode = false;
+    }
+  }
 }
 
 void sonar() {
@@ -69,4 +131,84 @@ void acceleration() {
   pulseY = pulseIn(yPin, HIGH);
   accelX = ((pulseX / 10) - 500) * 8;         //compute the acceleration value in milli-g's
   accelY = ((pulseY / 10) - 500) * 8;
+}
+
+void updateMode() {
+  //read the mode pins
+  bool down = (digitalRead(modePin1) == HIGH);
+  bool neutral = (digitalRead(modePin2) == HIGH);
+  bool up = (digitalRead(modePin3) == HIGH);
+  
+  bool error = false;
+  
+  //set flag for correct mode
+  if(down){
+    buoyMode = 0;
+  }
+  else if(neutral){
+    buoyMode = 1;
+  }
+  else if(up){
+    buoyMode = 2;
+  }
+  else{
+    error = true;                             //if none of the buttons have been recorded set error flag
+  }
+  
+  //shut both electrovalves
+  valveShut(0);
+  
+  //set LED for correct mode ? (flash if error ?)
+  
+}
+
+void manualStart() {
+  //shut both electrovalves
+  valveShut(0);
+  
+  //set flag for manual control
+  manualMode = true;
+  
+  //set LED for manual control ?
+  
+}
+
+void valveShut(int i) {
+  switch (i){
+    //shut both valves
+    case 0:
+      digitalWrite(valveEntrance, LOW);
+      digitalWrite(valveExit, LOW);
+      break;
+    
+    //shut entrance valve
+    case 1:
+      digitalWrite(valveEntrance, LOW);
+      break;
+    
+    //shut exit valve
+    case 2:
+      digitalWrite(valveExit, LOW);
+      break;
+  }
+}
+
+void valveOpen(int i) {
+  switch (i){
+    //open both valves
+    case 0:
+      digitalWrite(valveEntrance, HIGH);
+      digitalWrite(valveExit, HIGH);
+      break;
+    
+    //open entrance valve
+    case 1:
+      digitalWrite(valveEntrance, HIGH);
+      break;
+    
+    //open exit valve
+    case 2:
+      digitalWrite(valveExit, HIGH);
+      break;
+  }
 }
