@@ -21,6 +21,9 @@ const int modePin2 = 8;
 const int modePin3 = 9;
 volatile int buoyMode = -1;                   //set the mode to default
 volatile bool manualMode = false;             //set manual mode off
+bool inflated = false;                        //set the inflation flag to false
+String lastAction = "";                       //create a string recording last action
+volatile int contAction = 0;                  //set the counter for consecutive actions to 0
 
 const int valveEntrance = 12;                 //set the pins for valve control
 const int valveExit = 13;
@@ -29,7 +32,12 @@ int n = 3;                                    //rank of the depth information in
 float fSonarDepth = 0;                        //init sonar depth to 0
 float fPresDepth = 0;                         //init pressure sensor depth to 0
 int pulseX, pulseY;                           //init the output of the accelerometer (PMW pulses)
-int accelX, acceleY;                          //init acceleration of the system (in milli-g's)
+int accelX, acceleY, accelMag;                //init acceleration of the system (in milli-g's)
+
+float holdSonarDepth = 0;                     //init recorded sonar depth for neutral buoyancy
+float sonarTol = 1.5;                         //tolerance for the sonar depth before correction (in m)
+float holdPresDepth = 0;                      //init recorded pressure sensor depth for neutral buoyancy
+float presTol = 1;                            //tolerance for the pressure sensor depth before correction (in m)
 
 void setup() {
   // initialize digital pin LED_BUILTIN as an output.
@@ -83,17 +91,61 @@ void loop() {
     switch (buoyMode){
       //negative buoyancy (lowering)
       case 0:
-
+        
         break;
 
       //neutral buoyancy (level)
       case 1:
-
+        //check if the balloon has been inflated and it has not begun ascending
+        if((!inflated) && (accelMag < 1.1)){
+          lastAction = "inflate";
+          //open the entrance valve
+          valveOpen(1);                     
+          //delay to allow air to flow in (decrement length of inflation as time goes by to increased precision)
+          delay(200 - 10*(10-contAction));
+          contAction++;
+          //shut valve
+          valveClose(1);
+        }
+        else{
+          //set the flag for inflation
+          inflated = true;
+          //if the balloon goes too far up, deflate it until it is back in the tolerance zone
+          if((fSonarDepth > holdSonarDepth + sonarTol) || (fPresDepth > holdPresDepth + presTol)){
+            //reset the counter for continued action if last action was not deflation
+            if(lastAction != "deflate"){
+              lastAction = "deflate";
+              contAction = 0;
+            }
+            //Open the exit valve
+            valveOpen(2);
+            //delay to allow air flow
+            delay(200 - 10*(10-contAction));
+            contAction++;
+            //shut valve
+            valveClose(2);
+          }
+          //if the balloon is below the tolerance zone, inflate it
+          else if((fSonarDepth < holdSonarDepth - sonarTol) || (fPresDepth < holdPresDepth - presTol)){
+            //reset the counter for continued action if last action was not inflation
+            if(lastAction != "inflate"){
+              lastAction = "inflate";
+              contAction = 0;
+            }
+            //Open the exit valve
+            valveOpen(1);
+            //delay to allow air flow
+            delay(200 - 10*(10-contAction));
+            contAction++;
+            //shut valve
+            valveClose(1);
+          }
+        }
         break;
 
       //positive buoyancy (rising)
       case 2:
-
+        
         break;
 
       //initial (do nothing)
@@ -114,7 +166,7 @@ void sonar() {
   if (tempSerial.available()) {               // if something is incoming through the Serial Port
     if (nmeaDecoder.decode(Serial2.read())) { // if it's a valid NMEA sentence
       char* cDepth = nmeaDecoder.term(n);     //extract the nth term (depth)
-      fDepth = atof(cDepth);                  //convert it to float
+      fSonarDepth = atof(cDepth);                  //convert it to float
     }
   }
 }
@@ -131,6 +183,8 @@ void acceleration() {
   pulseY = pulseIn(yPin, HIGH);
   accelX = ((pulseX / 10) - 500) * 8;         //compute the acceleration value in milli-g's
   accelY = ((pulseY / 10) - 500) * 8;
+  //get the magnitude of the acceleration vector
+  accelMag = sqrt(pow(accelX, 2) + pow(accelY, 2));
 }
 
 void updateMode() {
@@ -147,6 +201,8 @@ void updateMode() {
   }
   else if(neutral){
     buoyMode = 1;
+    holdSonarDepth = fSonarDepth;             //set the depth to hold
+    holdPresDepth = fPresDepth;               
   }
   else if(up){
     buoyMode = 2;
@@ -154,6 +210,8 @@ void updateMode() {
   else{
     error = true;                             //if none of the buttons have been recorded set error flag
   }
+  
+  contAction = 0;                             //reset the consecutive action counter
   
   //shut both electrovalves
   valveShut(0);
