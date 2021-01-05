@@ -33,7 +33,7 @@ float lastSonarDepth = 0;
 float fPresDepth = 0;                         //init pressure sensor depth to 0
 float lastPresDepth = 0;
 int pulseX, pulseY;                           //init the output of the accelerometer (PMW pulses)
-int accelX, acceleY, accelMag;                //init acceleration of the system (in milli-g's)
+int accelX, accelY, accelMag;                //init acceleration of the system (in milli-g's)
 
 float holdSonarDepth = 0;                     //init recorded sonar depth for neutral buoyancy
 float sonarTol = 1.5;                         //tolerance for the sonar depth before correction (in m)
