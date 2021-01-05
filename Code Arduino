@@ -229,6 +229,7 @@ void sonar() {
       fSonarDepth = atof(cDepth);                  //convert it to float
     }
   }
+  //IMPLEMENTATION WARNING: CHECK THE SIGN OF THE DEPTH (it should be NEGATIVE)
 }
 
 void pressure() {
@@ -236,6 +237,7 @@ void pressure() {
   lastPresDepth = fPresDepth;                 //record the last depth for speed calculations
   sensor.read();                              //update the sensor state
   fPresDepth = sensor.depth();                //update the recorded depth
+  //IMPLEMENTATION WARNING: CHECK THE SIGN OF THE DEPTH (it should be NEGATIVE)
 }
 
 void acceleration() {
