@@ -1,28 +1,28 @@
--Decodage + Interface NMEA 183 pour sonar (contient liens matos):
+-Decoding + Interface NMEA 183 for the sonar (includes links to necessary material):
 https://kingtidesailing.blogspot.com/2015/09/how-to-connect-any-nmea-0183-device-to.html
 
--Module RS485 pour le sonar:
+-RS 485 Module for the sonar:
 https://www.amazon.com/SMAKN%C2%AE-MAX485-Module-RS-485-Development/dp/B014QNI0BC/ref=as_li_ss_tl?ie=UTF8&qid=1443373321&sr=8-1&keywords=rs-485+to+ttl&linkCode=sl1&tag=kintidsai-20&linkId=b773a41a531b7930e037013c1d3fc0b1
 
--Profondimetre (pression):
+-Pressure Sensor:
 https://bluerobotics.com/store/sensors-sonars-cameras/sensors/bar30-sensor-r1/?fbclid=IwAR3nUWNkh9Tx9mbH4dSqeHtjhEWk5wtxETh5kg2lhroQ6Z4fhyKgC6dbDyo
 
 -Accelerometre (Digital):
 https://www.arduino.cc/en/Tutorial/BuiltInExamples/Memsic2125
 https://www.parallax.com/package/memsic-2125-dual-axis-accelerometer-downloads/ (Datasheet)
 
--Electrovannes:
+-Electrovalves:
 20 bar, 24V AC
 https://www.esska.fr/shop/Electrovanne-2-2-normalement-fermee-acier-inoxydable-pour-air-comprime-eau-et-huile-20-bar-G-1-8-a-G-2---M2XESX000000-13500?hlid=M218ES24VAC0
 
 15 bar, 12V DC
 https://www.esska.fr/shop/Electrovanne-2-2-micro-modulaire-serie-MZ-normalement-ouverte-ou-fermee-pour-air-comprime-et-gaz-neutres-15-bar-entree-raccord-a-coiffe--855200000111-13500?hlid=8552MZ21412V
 
--Batterie 12 V
+-Battery (12 V)
 https://www.amazon.fr/Velamp-Batterie-Plomb-12-AH/dp/B00PVJJOMU/ref=sr_1_6?dchild=1&keywords=Mini+Batterie+12v&qid=1608478963&sr=8-6
 
--Relai (x2) 5V-12V pour controler Vannes:
+-Relay (x2) 5V-12V to control Valves:
 https://www.amazon.fr/HiLetgo%C2%AE-module-relais-canal-optocoupleur/dp/B0794SWWM8/ref=sr_1_6?creative=9325&creativeASIN=B00VRUAHLE&dchild=1&keywords=Tolako+5v+Relay+Module+for+Arduino+ARM+PIC+AVR+MCU+5V+Indicator+Light+LED+1+Channel+Relay+Module+Works+with+Official+Arduino+Boards&linkCode=gs3&linkId=7d8d5f9c18ad9292ffb16c8415717de3&qid=1608556554&sr=8-6&tag=circbasi0f-21
 
--Convertiseur 12V -> 5V:
+-DC-DC Converter 12V -> 5V:
 https://www.amazon.com/Converter-DROK-Regulator-Inverter-Transformer/dp/B01NALDSJ0
