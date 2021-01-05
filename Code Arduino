@@ -15,12 +15,11 @@ const int xPin = 5;                           //x output of the accelerometer
 const int yPin = 6;                           //y output of the accelerometer
 
 const int updatePin = 2;                      //set the mode interrupt pin
-const int manualPin = 3;                      //set the manual mode interrupt pin
+const int manualPin = 3;                      //set the DMS pin
 const int modePin1 = 7;                       //set the mode pins
 const int modePin2 = 8;
 const int modePin3 = 9;
 volatile int buoyMode = -1;                   //set the mode to default
-volatile bool manualMode = false;             //set manual mode off
 bool inflated = false;                        //set the inflation flag to false
 String lastAction = "";                       //create a string recording last action
 volatile int contAction = 0;                  //set the counter for consecutive actions to 0
@@ -69,13 +68,12 @@ void setup() {
   pinMode(modePin2, INPUT_PULLUP);
   pinMode(modePin3, INPUT_PULLUP);
   
+  //initialise the DMS pin
+  pinMode(manualPin, INPUT_PULLUP);
+  
   //initialise the interrupt pin to change buoyancy modes
   pinMode(updatePin, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(updatePin), updateMode, RISING);
-  
-  //initialise the interrupt pin to switch to manual mode
-  pinMode(manualPin, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(manualPin), manualStart, RISING);
   
   //initialise the valve control pins
   pinMode(valveEntrance, OUTPUT);
@@ -92,8 +90,8 @@ void loop() {
   pressure();
   acceleration();
   
-  //check for manual override
-  if (!manualMode){
+  //check for activated DMS
+  if (digitalRead(manualPin) == HIGH){
     //perform buoyancy adjustments according to mode
     switch (buoyMode){
       //negative buoyancy (lowering)
@@ -217,10 +215,8 @@ void loop() {
     }
   }
   else{
-    //read the manual pin, if it is low, disable manual mode
-    if (digitalRead(manualPin) == LOW) {
-      manualMode = false;
-    }
+    //if DMS disabled, enable manual mode lED ?
+    
   }
 }
 
@@ -282,17 +278,6 @@ void updateMode() {
   valveShut(0);
   
   //set LED for correct mode ? (flash if error ?)
-  
-}
-
-void manualStart() {
-  //shut both electrovalves
-  valveShut(0);
-  
-  //set flag for manual control
-  manualMode = true;
-  
-  //set LED for manual control ?
   
 }
 
