@@ -1,0 +1,366 @@
+//NMEA-0183 library.  
+//1/ open nmea.h and change  #include "WConstants.h"  to  #include "arduino.h"  
+//2/ Open nmal.cpp and change  #include "WProgram.h"  to  #include "arduino.h"  
+
+
+#include <SoftwareSerial.h>                   //this is for debugging purposes, once the product is tested succesfully, it will be removed
+//#include <nmea.h>                           //library to decode the sonar's messages
+//#include "MS5837.h"                         //library to operate the pressure sensor
+#include <Wire.h>                             //library to connect to the pressure sensor
+
+SoftwareSerial tempSerial(10, 11);            //assign new RX, TX pins for debugging
+//NMEA nmeaDecoder(ALL);
+//MS5837 presSensor;                          //create the pressure sensor data structure
+const int xPin = 5;                           //x output of the accelerometer
+const int yPin = 6;                           //y output of the accelerometer
+
+const int updatePin = 2;                      //set the mode interrupt pin
+const int manualPin = 3;                      //set the DMS pin
+const int modePin1 = 7;                       //set the mode pins
+const int modePin2 = 8;
+const int modePin3 = 9;
+volatile int buoyMode = -1;                   //set the mode to default
+bool inflated = false;                        //set the inflation flag to false
+String lastAction = "";                       //create a string recording last action
+volatile int contAction = 0;                  //set the counter for consecutive actions to 0
+
+const int valveEntrance = 12;                 //set the pins for valve control
+const int valveExit = 13;
+
+int n = 3;                                    //rank of the depth information in the NMEA sentence
+float fSonarDepth = 0;                        //init sonar depth to 0
+float lastSonarDepth = 0;
+float fPresDepth = 0;                         //init pressure sensor depth to 0
+float lastPresDepth = 0;
+int pulseX, pulseY;                           //init the output of the accelerometer (PMW pulses)
+int accelX, accelY, accelMag;                 //init acceleration of the system (in milli-g's)
+
+float holdSonarDepth = 0;                     //init recorded sonar depth for neutral buoyancy
+float sonarTol = 1.5;                         //tolerance for the sonar depth before correction (in m)
+float holdPresDepth = 0;                      //init recorded pressure sensor depth for neutral buoyancy
+float presTol = 1;                            //tolerance for the pressure sensor depth before correction (in m)
+float targetSpeed = 0.25;                     //target rising/lowering speed in m/s
+float speedTol = 0.20;                        //tolerance on the speed (m/s)
+long timeStamp = 0;                           //long int for time (ms)
+float sonarSpeed = 0;                         //init speed to 0
+float presSpeed = 0;
+
+void setup() {
+  // initialize digital pin LED_BUILTIN as an output.
+  pinMode(LED_BUILTIN, OUTPUT);
+  
+  tempSerial.begin(4800);                     //initialize the serial port (REPLACE tempSerial by Serial AFTER debugging)
+  Serial.begin(4800);						              //initialize the debug serial
+  Wire.begin();                               //initialize the I2C communication
+  
+  /*while (!sensor.init()) {                    //blink the onboard LED while initialising the sensor
+    digitalWrite(LED_BUILTIN, HIGH);
+    delay(250);
+    digitalWrite(LED_BUILTIN, LOW);
+    delay(250);
+  }
+  digitalWrite(LED_BUILTIN, LOW);*/             //reset the LED to off
+  
+  //sensor.setModel(MS5837::MS5837_30BA);       //set the pressure sensor type
+  //sensor.setFluidDensity(1029);               //water density in kg/m^3 (997 for freshwater, 1029 for seawater)
+  
+  //initialise the mode pins
+  pinMode(modePin1, INPUT_PULLUP);
+  pinMode(modePin2, INPUT_PULLUP);
+  pinMode(modePin3, INPUT_PULLUP);
+  
+  //initialise the DMS pin
+  pinMode(manualPin, INPUT_PULLUP);
+  
+  //initialise the interrupt pin to change buoyancy modes
+  pinMode(updatePin, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(updatePin), updateMode, RISING);
+  
+  //initialise the valve control pins
+  pinMode(valveEntrance, OUTPUT);
+  pinMode(valveExit, OUTPUT);
+  
+  sonar();                                    //initialize the recorded values
+  pressure();
+  acceleration();
+}   
+
+void loop() {
+  //update the sensor data
+  sonar();
+  pressure();
+  acceleration();
+  
+  //print out debug values
+  Serial.println("Sonar: ");
+  Serial.print(fSonarDepth);
+  Serial.println("");
+  Serial.println("Pressure Sensor: ");
+  Serial.print(fPresDepth);
+  Serial.println("");
+  Serial.println("Accelerometer: ");
+  Serial.print(accelMag);
+  Serial.println("");
+  Serial.println("");
+  Serial.print("Mode:");
+  Serial.print(buoyMode);
+  Serial.println("");
+  Serial.print("DMS:");
+  Serial.print(digitalRead(manualPin) == HIGH);
+  Serial.println("");
+  Serial.println("");
+  
+  //delay to allow reading
+  delay(500);
+  
+  //check for activated DMS
+  if (digitalRead(manualPin) == HIGH){
+    //perform buoyancy adjustments according to mode
+    switch (buoyMode){
+      //negative buoyancy (lowering)
+      case 0:
+        //speed calculation
+        speed();
+        //check speed vs target speed
+        if((sonarSpeed > -targetSpeed + speedTol) || (presSpeed > -targetSpeed + speedTol)){
+          if(lastAction != "deflate"){
+            lastAction = "deflate";
+            contAction = 0;
+          }
+          //open exit valve to lower buoyancy if lowering speed too low
+          valveOpen(2);
+          //delay to allow air flow
+          delay(200 - 10*(10-contAction));
+          contAction++;
+          //shut valve
+          valveShut(2);
+        }
+        else if((sonarSpeed < -targetSpeed - speedTol) || (presSpeed < -targetSpeed - speedTol)){
+          if(lastAction != "inflate"){
+            lastAction = "inflate";
+            contAction = 0;
+          }
+          //open entry valve to increase buoyancy if lowering speed too high
+          valveOpen(1);
+          //delay to allow air flow
+          delay(200 - 10*(10-contAction));
+          contAction++;
+          //shut valve
+          valveShut(1);
+        }
+        break;
+
+      //neutral buoyancy (level)
+      case 1:
+        //check if the balloon has been inflated and it has not begun ascending
+        if((!inflated) && (accelMag < 1100)){
+          lastAction = "inflate";
+          //open the entrance valve
+          valveOpen(1);                     
+          //delay to allow air to flow in (decrement length of inflation as time goes by to increased precision)
+          delay(200 - 10*(10-contAction));
+          contAction++;
+          //shut valve
+          valveShut(1);
+        }
+        else{
+          //set the flag for inflation
+          inflated = true;
+          //if the balloon goes too far up, deflate it until it is back in the tolerance zone
+          if((fSonarDepth > holdSonarDepth + sonarTol) || (fPresDepth > holdPresDepth + presTol)){
+            //reset the counter for continued action if last action was not deflation
+            if(lastAction != "deflate"){
+              lastAction = "deflate";
+              contAction = 0;
+            }
+            //Open the exit valve
+            valveOpen(2);
+            //delay to allow air flow
+            delay(200 - 10*(10-contAction));
+            contAction++;
+            //shut valve
+            valveShut(2);
+          }
+          //if the balloon is below the tolerance zone, inflate it
+          else if((fSonarDepth < holdSonarDepth - sonarTol) || (fPresDepth < holdPresDepth - presTol)){
+            //reset the counter for continued action if last action was not inflation
+            if(lastAction != "inflate"){
+              lastAction = "inflate";
+              contAction = 0;
+            }
+            //Open the exit valve
+            valveOpen(1);
+            //delay to allow air flow
+            delay(200 - 10*(10-contAction));
+            contAction++;
+            //shut valve
+            valveShut(1);
+          }
+        }
+        break;
+
+      //positive buoyancy (rising)
+      case 2:
+        //speed calculation
+        speed();
+        //check speed vs target speed
+        if((sonarSpeed > targetSpeed + speedTol) || (presSpeed > targetSpeed + speedTol)){
+          if(lastAction != "deflate"){
+            lastAction = "deflate";
+            contAction = 0;
+          }
+          //open exit valve to lower buoyancy if rising speed too high
+          valveOpen(2);
+          //delay to allow air flow
+          delay(200 - 10*(10-contAction));
+          contAction++;
+          //shut valve
+          valveShut(2);
+        }
+        else if((sonarSpeed < targetSpeed - speedTol) || (presSpeed < targetSpeed - speedTol)){
+          if(lastAction != "inflate"){
+            lastAction = "inflate";
+            contAction = 0;
+          }
+          //open entry valve to increase buoyancy if rising speed too low
+          valveOpen(1);
+          //delay to allow air flow
+          delay(200 - 10*(10-contAction));
+          contAction++;
+          //shut valve
+          valveShut(1);
+        }
+        break;
+
+      //initial (do nothing)
+      case -1:
+      	delay(50);
+        break;
+    }
+  }
+  else{
+    //if DMS disabled, enable manual mode lED ?
+    delay(50);
+  }
+}
+
+void sonar() {
+  //SONAR READ
+  lastSonarDepth = fSonarDepth;               //record the last depth for speed calculations
+  /*if (tempSerial.available()) {               // if something is incoming through the Serial Port
+    if (nmeaDecoder.decode(Serial2.read())) { // if it's a valid NMEA sentence
+      char* cDepth = nmeaDecoder.term(n);     //extract the nth term (depth)
+      fSonarDepth = atof(cDepth);                  //convert it to float
+    }
+  }*/
+  fSonarDepth = -150.0*analogRead(A0)/1024.0;			                  //read the value from a potentiometer
+}
+
+void pressure() {
+  //PRESSURE SENSOR READ
+  lastPresDepth = fPresDepth;                 //record the last depth for speed calculations
+  //sensor.read();                              //update the sensor state
+  delay(40);									//simulate sensor communication time
+  //fPresDepth = sensor.depth();                //update the recorded depth
+  fPresDepth = -150.0*analogRead(A1)/1024.0;								//read the value from a potentiometer
+}
+
+void acceleration() {
+  //ACCELEROMETER READ
+  //pulseX = pulseIn(xPin, HIGH);               //read the pulse length for the x and y axes
+  //pulseY = pulseIn(yPin, HIGH);
+  accelMag = (6000.0*analogRead(A2)/1024.0)-3000.0;		//read from a potentiometer
+}
+
+void updateMode() {
+  Serial.println("Update Mode Activated");
+  //read the mode pins
+  bool down = (digitalRead(modePin1) == HIGH);
+  bool neutral = (digitalRead(modePin2) == HIGH);
+  bool up = (digitalRead(modePin3) == HIGH);
+  
+  bool error = false;
+  
+  //set flag for correct mode
+  if(down){
+    buoyMode = 0;
+  }
+  else if(neutral){
+    buoyMode = 1;
+    holdSonarDepth = fSonarDepth;             //set the depth to hold
+    holdPresDepth = fPresDepth;               
+  }
+  else if(up){
+    buoyMode = 2;
+  }
+  else{
+    error = true;                             //if none of the buttons have been recorded set error flag
+  }
+  
+  contAction = 0;                             //reset the consecutive action counter
+  
+  //shut both electrovalves
+  valveShut(0);
+  
+  //set LED for correct mode ? (flash if error ?)
+  
+}
+
+void valveShut(int i) {
+  Serial.print("Close Valve:");
+  Serial.print(i);
+  Serial.println("");
+  switch (i){
+    //shut both valves
+    case 0:
+      digitalWrite(valveEntrance, LOW);
+      digitalWrite(valveExit, LOW);
+      break;
+    
+    //shut entrance valve
+    case 1:
+      digitalWrite(valveEntrance, LOW);
+      break;
+    
+    //shut exit valve
+    case 2:
+      digitalWrite(valveExit, LOW);
+      break;
+  }
+}
+
+void valveOpen(int i) {
+  Serial.print("Open Valve:");
+  Serial.print(i);
+  Serial.println("");
+  switch (i){
+    //open both valves
+    case 0:
+      digitalWrite(valveEntrance, HIGH);
+      digitalWrite(valveExit, HIGH);
+      break;
+    
+    //open entrance valve
+    case 1:
+      digitalWrite(valveEntrance, HIGH);
+      break;
+    
+    //open exit valve
+    case 2:
+      digitalWrite(valveExit, HIGH);
+      break;
+  }
+}
+
+void speed() {
+  //get the time difference since last call (ms)
+  long deltaT = millis() - timeStamp;
+  
+  //get the position difference since last call (m)
+  float sonarDeltaH = fSonarDepth - lastSonarDepth;
+  float presDeltaH = fPresDepth - lastPresDepth;
+  
+  //get the speed (m/s)
+  sonarSpeed = sonarDeltaH*1000/deltaT;
+  presSpeed = presDeltaH*1000/deltaT;
+}
