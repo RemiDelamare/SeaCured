@@ -132,7 +132,7 @@ void loop() {
       //neutral buoyancy (level)
       case 1:
         //check if the balloon has been inflated and it has not begun ascending
-        if((!inflated) && (accelMag < 1.1)){
+        if((!inflated) && (accelMag < 1100)){
           lastAction = "inflate";
           //open the entrance valve
           valveOpen(1);                     
